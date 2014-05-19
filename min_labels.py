@@ -16,6 +16,7 @@
 #
 # mailto: akalenuk@gmail.com
 
+# script for minimizing labels got from ILDasm disassembly
 import sys
 
 if len(sys.argv) < 2:
@@ -31,54 +32,48 @@ else:
 	print "Too many paramenters"
 	exit(1)
 
-def clean( text ):
-	lines = []
-	labels = set()
-	double_labels = set()
-	
-	for line in text.split('\n'):
-		lines += line.rstrip()
-		line = line.replace('\t', ' ').lstrip()
-
-		label_or_not = line.split(' ')[0]
-		if label_or_not != '' and label_or_not[-1] == ':':
-			labels.add(label_or_not)
-	
-	for label in labels:
-		text2 = text.replace(label[:-1], '')
-		if len(text) - len(text2) > len(label)-1:
-			double_labels.add(label)
-
-	unique_labels = labels - double_labels
-
-	for ulabel in unique_labels:
-		text = text.replace(ulabel, '        ')
-		
-	return text
 
 	
 f = open(in_fname)
-text = ''.join(f.readlines())
+lines = f.readlines()
 f.close()
 
-output = ""
-in_brackets = ""
-depth = 0
-
-for c in text:
-	if c == '{':
-		depth += 1
-	elif c == '}':
-		depth -= 1
-		if depth == 0:
-			output += clean( in_brackets )
-			in_brackets = ""
-
-	if depth == 0:
-		output += c
-	else:
-		in_brackets += c
+regions = [[]]
+i = -1
+for line in lines:
+	stripped = line.strip()
+	if len(stripped) > 8 and stripped[7] == ':' and stripped[:3] == 'IL_':
+		si = stripped[3:7]
+		ii = int(si, 16)
+		if ii <= i:
+			i = -1
+			regions += [[]]
+		else:
+			i = ii
+	regions[-1] += [line]
 	
+
+def clean_region( region ):
+	text = ''.join(region)
+	output = ""
+	for line in region:
+		stripped = line.lstrip()
+		d = ' ' * (len(line) - len(stripped))
+		if len(stripped) > 8 and stripped[7] == ':' and stripped[:3] == 'IL_':
+			label = stripped[:7]
+			if text.find(label) == text.rfind(label):
+				output += d + ' '*8 + stripped[8:]
+			else:
+				output += d + stripped
+		else:
+			output += d + stripped
+	return output
+			
+		
+output = ""
+for region in regions:
+	output += clean_region( region )
+
 f = open(out_fname, 'w')
 f.write(output)
 f.close()
